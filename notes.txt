@@ -1,0 +1,109 @@
+
+Sending: LASTEMP?
+RETURNED:  23.07C
+
+Sending: PSUTEMP?
+RETURNED:  24.72C
+
+Sending: STATUS?
+RETURNED: DISABLED
+
+Sending: CONTROL=POWER
+RETURNED: 
+
+Sending: CONTROL=CURRENT
+RETURNED: 
+
+Sending: CURRENT=13
+RETURNED: Error:CURRENT=13- 67
+
+Sending: POWER=1
+RETURNED: 
+
+Sending: ON
+RETURNED: 
+
+Sending: OFF
+RETURNED: 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###Connding rx to tx pin and nothing else
+Bytes in buffer after 2s: 8
+Raw bytes: b'STATUS?\r'
+Hex: 5354415455533f0d
+---Sending: PSUTEMP?---
+---Raw response: b'PSUTEMP?\r\n'---
+---Response repr: 'PSUTEMP?'---
+
+
+
+
+    def send_command(self, cmd):
+        self.ser.reset_input_buffer()
+        print(f"Sending: {cmd}")
+
+        self.ser.write((cmd + '\r').encode())
+        # Wait for PSU to send everything
+        time.sleep(3)
+
+        # Read all available bytes at once
+        waiting = self.ser.in_waiting
+        print(f"Bytes in buffer: {waiting}")
+        raw_all = self.ser.read(waiting) if waiting else b''
+        print(f"All raw bytes: {raw_all}")
+        print(f"All raw hex: {raw_all.hex()}")
+
+        # Split into lines and print each one
+        lines = raw_all.split(b'\r')
+        for i, line in enumerate(lines):
+            print(f"Line {i}: {repr(line)}")
+
+        return raw_all.decode('ascii', errors='replace').strip()
+
+
+
+
+
+
+
+wiring 2-6 does same as 5-6
+
+1-4
+3-8
+
+
+6-5-14-38-2-14
+
+
+rs232-
+2.5.9 gnd
+1 - 5v
+4- -0.5V
+
+
+Commands and errors
+'WHOOP?'
+    Error: - 32
+ZZZZ?
+    Error:ZZZZ?- 90
+ZZZZ
+    Error:ZZZZ- 90
+
+
+turn on
+power mode
+set power
+clicking a current turns on laser
