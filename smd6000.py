@@ -5,6 +5,7 @@ import queue
 import tkinter as tk
 from tkinter import ttk, messagebox
 import io
+import re
 
 
 class MPCLaser:
@@ -193,8 +194,26 @@ class LaserGUI:
         temp_frame.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
         self.temp_label = ttk.Label(temp_frame, text="None so far")
         self.temp_label.grid(row=0, column=0, padx=5)
-        ttk.Button(temp_frame, text="Get Temps",
-                   command=self.get_temps).grid(row=0, column=2, padx=5)
+
+        ttk.Label(temp_frame, text="Laser Temp").grid(row=0, column=0, padx=5)
+
+        self.laser_temp_bar = ttk.Progressbar(
+            temp_frame, orient="horizontal", length=200, mode="determinate"
+        )
+        self.laser_temp_bar.grid(row=0, column=1, padx=5)
+        self.laser_temp_label = ttk.Label(temp_frame, text="-- °C")
+        self.laser_temp_label.grid(row=0, column=2, padx=5)
+
+        ttk.Label(temp_frame, text="PSU Temp").grid(row=1, column=0, padx=5)
+        self.psu_temp_bar = ttk.Progressbar(
+            temp_frame, orient="horizontal", length=200, mode="determinate"
+        )
+        self.psu_temp_bar.grid(row=1, column=1, padx=5)
+        self.psu_temp_label = ttk.Label(temp_frame, text="-- °C")
+        self.psu_temp_label.grid(row=1, column=2, padx=5)
+
+        ttk.Button(temp_frame, text="Get Temps", command=self.get_temps)\
+            .grid(row=2, column=1, pady=5)
 
     # Worker thread — the only place serial I/O happens
     def _start_worker(self):
@@ -312,12 +331,24 @@ class LaserGUI:
 
     def get_temps(self):
         def on_laser_temp(r):
-            self._set_temps(f"Laser temp: {r}")
+            t1 = self._parse_temp(r)
+            if t1 is not None:
+                self.laser_temp_bar["value"] = t1
+                self.laser_temp_label.config(text=f"{t1:.1f} °C")
+                self.laser_temp_bar["maximum"] = 50
+
             self._enqueue(
                 self.laser.query_psu_temp(),
-                callback=lambda r2: self._set_temps(
-                    f"Laser temp: {r} | PSU temp: {r2}")
+                callback=on_psu_temp
             )
+
+        def on_psu_temp(r):
+            t2 = self._parse_temp(r)
+            if t2 is not None:
+                self.psu_temp_bar["value"] = t2
+                self.psu_temp_label.config(text=f"{t2:.1f} °C")
+                self.psu_temp_bar["maximum"] = 100
+
         self._enqueue(self.laser.query_laser_temp(), callback=on_laser_temp)
 
     # helpers
@@ -326,6 +357,14 @@ class LaserGUI:
 
     def _set_temps(self, text):
         self.temp_label.config(text=text)
+
+    def _parse_temp(self, response: str):
+        try:
+            # Extract first number found in response
+            match = re.search(r"[-+]?\d*\.?\d+", response)
+            return float(match.group()) if match else None
+        except:
+            return None
 
 
 if __name__ == "__main__":
