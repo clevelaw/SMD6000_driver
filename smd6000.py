@@ -73,13 +73,13 @@ class MPCLaser:
             errors='ignore'
         )
 
-    def send_command(self, cmd):
+    def DONT_send_command(self, cmd):
         """
         Send a single command and return the response string.
         Must only be called from the worker thread — not thread-safe.
         """
-        self._ser.reset_input_buffer()
-        self._ser.reset_output_buffer()
+        # self._ser.reset_input_buffer()
+        # self._ser.reset_output_buffer()
         print(f"Sending: {cmd}")
         self._io.write(cmd + '\r')
         self._io.flush()
@@ -89,9 +89,25 @@ class MPCLaser:
         print("-----")
         return echo.strip()
 
-    # Not implemented: "STEN=YES/NO", "STPOW=###", write_apc, recalibrate, query_timers, query_power, query_version
+    def send_command(self, cmd):
+        """
+        Send a single command and return the response string.
+        Must only be called from the worker thread — not thread-safe.
+        """
+        # self._ser.reset_input_buffer()
+        # self._ser.reset_output_buffer()
+        print(f"Sending: {cmd}")
+        self._io.write(cmd + '\r')
+        self._io.flush()
+        b = self._io.read()
+
+        print("Return\n", b, "-------")
+        return b
+
+    # Not implemented: "STEN=YES/NO", "STPOW=###", write_apc, recalibrate, query_power, query_version
     # "STAT?" and not "STATUS?"
     # https://novantaphotonics.com/wp-content/uploads/2022/05/gem_with_mpc_6000_Novanta_Product_Manual.pdf
+
     def laser_off(self): return "OFF"
     def laser_on(self): return "ON"
     def current_mode(self): return "CONTROL=CURRENT"
@@ -150,8 +166,8 @@ class LaserGUI:
         )
         self.disconnect_btn.grid(row=0, column=3, padx=5)
 
-        #  control
-        ctrl_frame = ttk.LabelFrame(self.root, text="Control")
+        # control
+        ctrl_frame = ttk.LabelFrame(self.root, text="Power")
         ctrl_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
         self.on_btn = ttk.Button(
             ctrl_frame, text="Laser ON", command=self.laser_on, state="disabled"
@@ -160,26 +176,27 @@ class LaserGUI:
         self.off_btn = ttk.Button(
             ctrl_frame, text="Laser OFF", command=self.laser_off, state="disabled"
         )
+
+        # power
+        power_frame = ttk.LabelFrame(self.root, text="Control")
+        power_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
         self.off_btn.grid(row=0, column=1, padx=5, pady=5)
-        ttk.Button(ctrl_frame, text="Power Mode",
-                   command=self.set_power_mode).grid(row=1, column=0, pady=5)
-        ttk.Button(ctrl_frame, text="Current Mode",
-                   command=self.set_current_mode).grid(row=1, column=1, pady=5)
-        ttk.Label(ctrl_frame, text="Current (%):").grid(
+        ttk.Button(power_frame, text="Power Mode",
+                   command=self.set_power_mode).grid(row=0, column=0, pady=5)
+        ttk.Button(power_frame, text="Current Mode",
+                   command=self.set_current_mode).grid(row=0, column=1, pady=5)
+        ttk.Label(power_frame, text="Current (%):").grid(
             row=2, column=0, pady=5)
         self.current_scale = ttk.Scale(
-            ctrl_frame, from_=0, to=100, command=self._on_current_change
+            power_frame, from_=0, to=100, command=self._on_current_change
         )
         self.current_scale.grid(row=2, column=1, pady=5)
         self._current_after_id = None
 
-        # power
-        power_frame = ttk.LabelFrame(self.root, text="Set Power (mW)")
-        power_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
         self.power_entry = ttk.Entry(power_frame, width=10)
-        self.power_entry.grid(row=0, column=0)
+        self.power_entry.grid(row=1, column=1)
         ttk.Button(power_frame, text="Set Power",
-                   command=self.set_power).grid(row=0, column=1, padx=5)
+                   command=self.set_power).grid(row=1, column=0, padx=5)
 
         # status
         status_frame = ttk.LabelFrame(self.root, text="Status")
@@ -190,13 +207,12 @@ class LaserGUI:
                    command=self.refresh_status).grid(row=0, column=1, padx=5)
 
         # temperature
-        temp_frame = ttk.LabelFrame(self.root, text="Temperature")
+        temp_frame = ttk.LabelFrame(self.root, text="Live info")
         temp_frame.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
         self.temp_label = ttk.Label(temp_frame, text="None so far")
         self.temp_label.grid(row=0, column=0, padx=5)
 
         ttk.Label(temp_frame, text="Laser Temp").grid(row=0, column=0, padx=5)
-
         self.laser_temp_bar = ttk.Progressbar(
             temp_frame, orient="horizontal", length=200, mode="determinate"
         )
@@ -212,10 +228,55 @@ class LaserGUI:
         self.psu_temp_label = ttk.Label(temp_frame, text="-- °C")
         self.psu_temp_label.grid(row=1, column=2, padx=5)
 
+        # power bar
+        ttk.Label(temp_frame, text="Power").grid(row=3, column=0, padx=5)
+        self.laser_power_bar = ttk.Progressbar(
+            temp_frame, orient="horizontal", length=200, mode="determinate"
+        )
+        self.laser_power_bar.grid(row=3, column=1, padx=5)
+        self.laser_power_label = ttk.Label(temp_frame, text="-- W")
+        self.laser_power_label.grid(row=3, column=2, padx=5)
+        # current bar
+        ttk.Label(temp_frame, text="Current").grid(row=4, column=0, padx=5)
+        self.laser_current_bar = ttk.Progressbar(
+            temp_frame, orient="horizontal", length=200, mode="determinate"
+        )
+        self.laser_current_bar.grid(row=4, column=1, padx=5)
+        self.laser_current_label = ttk.Label(temp_frame, text="-- %")
+        self.laser_current_label.grid(row=4, column=2, padx=5)
+
         ttk.Button(temp_frame, text="Get Temps", command=self.get_temps)\
             .grid(row=2, column=1, pady=5)
 
+        # PSU info
+        timers_frame = ttk.LabelFrame(self.root, text="PSU info")
+        timers_frame.grid(row=5, column=0, padx=10, pady=10, sticky="ew")
+
+        ttk.Label(timers_frame, text="PSU Time:").grid(
+            row=0, column=0, padx=5, sticky="w")
+        self.psu_time_label = ttk.Label(timers_frame, text="--")
+        self.psu_time_label.grid(row=0, column=1, padx=5, sticky="w")
+
+        ttk.Label(timers_frame, text="Laser Time:").grid(
+            row=1, column=0, padx=5, sticky="w")
+        self.laser_time_label = ttk.Label(timers_frame, text="--")
+        self.laser_time_label.grid(row=1, column=1, padx=5, sticky="w")
+
+        ttk.Label(timers_frame, text="Laser >1A Time:").grid(
+            row=2, column=0, padx=5, sticky="w")
+        self.laser_1a_time_label = ttk.Label(timers_frame, text="--")
+        self.laser_1a_time_label.grid(row=2, column=1, padx=5, sticky="w")
+
+        ttk.Button(timers_frame, text="Get Timers", command=self.get_timers)\
+            .grid(row=4, column=0, columnspan=2, pady=5)
+
+        ttk.Label(timers_frame, text="Firmware:").grid(
+            row=3, column=0, padx=5, sticky="w")
+        self.firmware_label = ttk.Label(timers_frame, text="--")
+        self.firmware_label.grid(row=3, column=1, padx=5, sticky="w")
+
     # Worker thread — the only place serial I/O happens
+
     def _start_worker(self):
         self._worker_thread = threading.Thread(
             target=self._worker_loop, daemon=True)
@@ -336,6 +397,7 @@ class LaserGUI:
                 self.laser_temp_bar["value"] = t1
                 self.laser_temp_label.config(text=f"{t1:.1f} °C")
                 self.laser_temp_bar["maximum"] = 50
+                self.psu_temp_bar["maximum"] = 50
 
             self._enqueue(
                 self.laser.query_psu_temp(),
@@ -351,6 +413,25 @@ class LaserGUI:
 
         self._enqueue(self.laser.query_laser_temp(), callback=on_laser_temp)
 
+    def get_timers(self):
+        def callback(response):
+            parsed = self._parse_timers(response)
+
+            if parsed["psu"] is not None:
+                self.psu_time_label.config(text=parsed["psu"])
+
+            if parsed["laser"] is not None:
+                self.laser_time_label.config(text=parsed["laser"])
+
+            if parsed["laser_1a"] is not None:
+                self.laser_1a_time_label.config(text=parsed["laser_1a"])
+
+            if parsed["firmware"] is not None:
+                self.firmware_label.config(text=parsed["firmware"])
+
+        self._enqueue(self.laser.query_timers(), callback=callback)
+        self._enqueue(self.laser.query_version(), callback=callback)
+
     # helpers
     def _set_status(self, text):
         self.status_label.config(text=text)
@@ -365,6 +446,24 @@ class LaserGUI:
             return float(match.group()) if match else None
         except:
             return None
+
+    def _parse_timers(self, response: str):
+        result = {
+            "psu": None,
+            "laser": None,
+            "laser_1a": None,
+            "firmware": None
+        }
+
+        for line in response.splitlines():
+            if "PSU Time" in line:
+                result["psu"] = line.split("=")[-1].strip()
+            elif "Laser Time" in line and "> 1A" not in line:
+                result["laser"] = line.split("=")[-1].strip()
+            elif "Laser > 1A Time" in line:
+                result["laser_1a"] = line.split("=")[-1].strip()
+
+        return result
 
 
 if __name__ == "__main__":
